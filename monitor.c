@@ -98,8 +98,7 @@ int get_process_cpu_times(pid_t pid, unsigned long *utime, unsigned long *stime)
     fclose(fp);
     
     // Parse the stat file
-    // Format: pid (comm) state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime ...
-    // We need fields 14 (utime) and 15 (stime)
+    // Need fields 14 (utime) and 15 (stime)
     
     char *p = line;
     
@@ -111,8 +110,7 @@ int get_process_cpu_times(pid_t pid, unsigned long *utime, unsigned long *stime)
     
     p += 2;  // Skip ") "
     
-    // Now parse fields: state ppid pgrp session tty_nr tpgid flags minflt cminflt majflt cmajflt utime stime
-    // We need to skip fields 3-13 to get to utime (field 14) and stime (field 15)
+    // Skip fields 3-13 to get to utime (field 14) and stime (field 15)
     char state;
     int ppid, pgrp, session, tty_nr, tpgid;
     unsigned int flags;
@@ -219,7 +217,6 @@ void update_cpu_usage(long clock_ticks_per_sec) {
     if (proc_dir == NULL)
         return;
     
-    // First pass: collect current data
     while ((entry = readdir(proc_dir)) != NULL && current_count < MAX_PROCESSES) {
         if (!is_number(entry->d_name))
             continue;
@@ -243,7 +240,6 @@ void update_cpu_usage(long clock_ticks_per_sec) {
     }
     closedir(proc_dir);
     
-    // Second pass: calculate deltas from last sample (not from baseline!)
     for (int i = 0; i < current_count; i++) {
         pid_t pid = current_sample[i].pid;
         uid_t uid = current_sample[i].uid;
@@ -267,17 +263,17 @@ void update_cpu_usage(long clock_ticks_per_sec) {
         
         if (!found_in_last) {
             // New process - find in baseline
-            int found_in_baseline = 0;  // ← ADD THIS FLAG
+            int found_in_baseline = 0; 
             for (int j = 0; j < baseline_count; j++) {
                 if (baseline[j].pid == pid) {
                     utime_delta = utime_now - baseline[j].utime;
                     stime_delta = stime_now - baseline[j].stime;
-                    found_in_baseline = 1;  // ← SET FLAG
+                    found_in_baseline = 1; 
                     break;
                 }
             }
             // If not in baseline either, it's completely new
-            if (!found_in_baseline) {  // ← FIX: Check flag instead of delta values!
+            if (!found_in_baseline) { 
                 utime_delta = utime_now;
                 stime_delta = stime_now;
             }
@@ -346,12 +342,16 @@ int main(int argc, char *argv[]) {
     // Sort users by CPU time (descending)
     qsort(users, user_count, sizeof(UserInfo), compare_users);
     
-    // Print results
+    // Print results (only users with non-zero CPU time)
     printf("Rank User CPU Time (milliseconds)\n");
     printf("----------------------------------------\n");
-    
+
+    int rank = 1;
     for (int i = 0; i < user_count; i++) {
-        printf("%-4d %-15s %llu\n", i + 1, users[i].username, users[i].total_cpu_ms);
+        if (users[i].total_cpu_ms > 0) {
+            printf("%-4d %-15s %llu\n", rank, users[i].username, users[i].total_cpu_ms);
+            rank++;
+        }
     }
     
     return 0;
